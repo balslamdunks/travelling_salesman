@@ -1,0 +1,456 @@
+import numpy as np
+from Tkinter import Tk
+from tkFileDialog import askopenfilename
+from Tkinter import Tk, Canvas
+import random
+import operator
+import matplotlib.pyplot as plt
+import pandas as pd
+
+super_route = []
+# __WINDOW__ = 500
+# root = Tk()
+# canvas = Canvas(root, width=__WINDOW__ + 50, height=__WINDOW__ + 100, bg='white')
+# canvas.create_text(100, 10, fill="purple", font="Times 20 bold",
+#                    text="TSP: 30 ")
+#
+# canvas.pack()
+def distance(p1, p2):
+    x = p2[0] - p1[0]   # Distance formula to get from edge to edge
+    y = p2[1] - p1[1]
+
+    return (x ** 2 + (y** 2))
+
+
+def distance_for_route(distance, route):
+    if distance == 0:
+        pathDistance = 0
+        for i in range(0, len(route)):
+            fromCity = route[i] # for city starting with index
+            toCity = None
+            if i + 1 < len(route):
+                toCity = route[i + 1] # add to city route
+            else:
+                toCity = route[0] # city route begins at one
+            pathDistance += fromCity.distance(toCity)
+        distance = pathDistance # total distance calculation
+    return distance
+
+def distance_fitness(fitness):
+    if fitness == 0:
+        fitness = 1 / float(distance_for_route())
+    return fitness
+
+
+def new_route(nodes):
+    route = random.sample(nodes, len(nodes))
+    return route
+
+
+
+
+def current_route(population):
+    fitnessResults = {}
+    for i in range(0,len(population)):
+        fitnessResults[i] = distance_for_route(population[i]).distance_fitness()
+    return sorted(fitnessResults.items(), key = operator.itemgetter(1), reverse = True)
+
+
+def selection(ordered_path, betterChild):
+    selectionResults = []
+    df = pd.DataFrame(np.array(ordered_path), columns=["I", "Fitness"])
+    df['sum'] = df.Fitness.cumsum()
+    df['percentage'] = 100 * df.cum_sum / df.Fitness.sum()
+
+    for i in range(0, betterChild):
+        selectionResults.append(ordered_path[i][0]) # Return better fitness
+    for i in range(0, len(ordered_path) - betterChild):
+        pick = 100 * random.random()
+        for i in range(0, len(ordered_path)):
+            if pick <= df.iat[i, 3]:
+                selectionResults.append(ordered_path[i][0]) # Better Selection Results
+                break
+    return selectionResults
+
+
+def matingPool(population, selectionResults):
+    matingpool = []
+    for i in range(0, len(selectionResults)):
+        index = selectionResults[i]
+        matingpool.append(population[index])
+    return matingpool
+
+def original_population(size, nodes):
+    population = []
+
+    for i in range(0, size):
+        population.append(new_route(nodes))
+    return population
+
+
+def crossover_parent(p1, p2):
+    p1_child = []
+    p2_child = []
+
+    p1_gene = int(random.random() * len(p1)) # Random set of cities from p1
+    p2_gene = int(random.random() * len(p1)) # random set of cities from p2
+
+    startGene = min(p1_gene, p2_gene) # Starting new gene
+    endGene = max(p1_gene, p2_gene) # enging new gene
+
+    for i in range(startGene, endGene): # For the entire list of new gene
+        p1_child.append(p1[i]) # New child route
+
+    child_three = []
+    p2_child = [item for item in p2 if item not in p1_child] # List concat for p1 child
+
+    new_child = p1_child + p2_child # New Child
+    return new_child
+
+
+def crossover_method(genes, betterChild):
+    children = [] # Initial children list
+    pool = random.sample(genes, len(genes))
+    length = len(genes) - betterChild
+
+    for i in range(0, betterChild):
+        children.append(genes[i])
+
+    for i in range(0, length):
+        child = crossover_parent(pool[i], pool[len(genes) - i - 1])
+        children.append(child)
+    return children
+
+
+def mutate(individual, mutationRate):
+    for val in range(len(individual)):
+        if (random.random() < mutationRate):
+            swapWith = int(random.random() * len(individual))
+
+            city_to_swap1 = individual[val]
+            city_to_swap2 = individual[swapWith]
+
+            individual[val] = city_to_swap1
+            individual[swapWith] = city_to_swap2
+    return individual
+
+def aggregate_method(cities):
+    super_cities = []
+    chosen = 0
+    chosen_increment = []
+    for i in cities:
+        chosen = i +1
+        chosen_increment.append(chosen)
+        super_cities.append(cities[i])
+    return super_cities, chosen_increment
+
+
+
+class City:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+    def distance(self, city):
+        xDis = abs(self.x - city.x)
+        yDis = abs(self.y - city.y)
+        distance = np.sqrt((xDis ** 2) + (yDis ** 2))
+        return distance
+
+    def __repr__(self):
+        return "(" + str(self.x) + "," + str(self.y) + ")"
+
+
+class Fitness:
+    def __init__(self, route):
+        self.route = route
+        self.distance = 0
+        self.fitness = 0.0
+
+    def routeDistance(self):
+        if self.distance == 0:
+            pathDistance = 0
+            for i in range(0, len(self.route)):
+                fromCity = self.route[i]
+                toCity = None
+                if i + 1 < len(self.route):
+                    toCity = self.route[i + 1]
+                else:
+                    toCity = self.route[0]
+                pathDistance += fromCity.distance(toCity)
+            self.distance = pathDistance
+        return self.distance
+
+    def routeFitness(self):
+        if self.fitness == 0:
+            self.fitness = 1 / float(self.routeDistance())
+        return self.fitness
+
+
+def createRoute(cityList):
+    route = random.sample(cityList, len(cityList))
+    return route
+
+
+
+def initialPopulation(popSize, cityList):
+    population = []
+
+    for i in range(0, popSize):
+        population.append(createRoute(cityList))
+    return population
+
+
+def rankRoutes(population):
+    fitnessResults = {}
+    for i in range(0,len(population)):
+        fitnessResults[i] = Fitness(population[i]).routeFitness()
+    return sorted(fitnessResults.items(), key = operator.itemgetter(1), reverse = True)
+
+
+def selection(popRanked, eliteSize):
+    selectionResults = []
+    df = pd.DataFrame(np.array(popRanked), columns=["Index", "Fitness"])
+    df['cum_sum'] = df.Fitness.cumsum()
+    df['cum_perc'] = 100 * df.cum_sum / df.Fitness.sum()
+
+    for i in range(0, eliteSize):
+        selectionResults.append(popRanked[i][0])
+    for i in range(0, len(popRanked) - eliteSize):
+        pick = 100 * random.random()
+        for i in range(0, len(popRanked)):
+            if pick <= df.iat[i, 3]:
+                selectionResults.append(popRanked[i][0])
+                break
+    return selectionResults
+
+
+def matingPool(population, selectionResults):
+    matingpool = []
+    for i in range(0, len(selectionResults)):
+        index = selectionResults[i]
+        matingpool.append(population[index])
+    return matingpool
+
+
+def breed(parent1, parent2):
+    child = []
+    childP1 = []
+    childP2 = []
+
+    geneA = int(random.random() * len(parent1))
+    geneB = int(random.random() * len(parent1))
+
+    startGene = min(geneA, geneB)
+    endGene = max(geneA, geneB)
+
+    for i in range(startGene, endGene):
+        childP1.append(parent1[i])
+
+    childP2 = [item for item in parent2 if item not in childP1]
+
+    child = childP1 + childP2
+    return child
+
+
+def breedPopulation(matingpool, eliteSize):
+    children = []
+    length = len(matingpool) - eliteSize
+    pool = random.sample(matingpool, len(matingpool))
+
+    for i in range(0, eliteSize):
+        children.append(matingpool[i])
+
+    for i in range(0, length):
+        child = breed(pool[i], pool[len(matingpool) - i - 1])
+        children.append(child)
+    return children
+
+
+def mutate(individual, mutationRate):
+    for swapped in range(len(individual)):
+        if (random.random() < mutationRate):
+            swapWith = int(random.random() * len(individual))
+
+            city1 = individual[swapped]
+            city2 = individual[swapWith]
+
+            individual[swapped] = city2
+            individual[swapWith] = city1
+    return individual
+
+
+def mutatePopulation(population, mutationRate):
+    mutatedPop = []
+
+    for ind in range(0, len(population)):
+        mutatedInd = mutate(population[ind], mutationRate)
+        mutatedPop.append(mutatedInd)
+    return mutatedPop
+
+
+def nextGeneration(currentGen, eliteSize, mutationRate):
+    popRanked = rankRoutes(currentGen)
+    selectionResults = selection(popRanked, eliteSize)
+    matingpool = matingPool(currentGen, selectionResults)
+    children = breedPopulation(matingpool, eliteSize)
+    nextGeneration = mutatePopulation(children, mutationRate)
+    return nextGeneration
+
+
+def geneticAlgorithm(population, popSize, eliteSize, mutationRate, generations):
+    pop = initialPopulation(popSize, population)
+    print("Initial distance: " + str(1 / rankRoutes(pop)[0][1]))
+
+    for i in range(0, generations):
+        pop = nextGeneration(pop, eliteSize, mutationRate)
+        print("Distance : {}".format(str(1 / rankRoutes(pop)[0][1])))
+    print("Final distance: " + str(1 / rankRoutes(pop)[0][1]))
+    bestRouteIndex = rankRoutes(pop)[0][0]
+    bestRoute = pop[bestRouteIndex]
+    print ("Best Route: {} ".format(bestRoute))
+    return bestRoute
+
+
+cityList = []
+
+# def addToCanvas(cities):
+#     min_x = np.min(cities[:, 0])
+#     min_y = np.min(cities[:, 1])
+#
+#     max_x = np.max(cities[:, 0])
+#     max_y = np.max(cities[:, 1])
+#
+#     for i in range(len(cities)):
+#         c = cities[i - 1]
+#         c_next = cities[i]
+#
+#         scaled_x = (c[0] - min_x) / (max_x - min_x) * __WINDOW__ + 60
+#         scaled_y = (c[1] - min_y) / (max_y - min_y) * __WINDOW__ + 60
+#
+#         scaled_x_next = (c_next[0] - min_x) / (max_x - min_x) * __WINDOW__ + 60
+#         scaled_y_next = (c_next[1] - min_y) / (max_y - min_y) * __WINDOW__ + 60
+#
+#         canvas.create_oval(scaled_x/1.3 - 4, scaled_y/1.3 - 4, scaled_x/1.3 + 4, scaled_y/1.3 + 4, fill='pink', outline='black')
+#         canvas.create_oval(scaled_x_next/1.3 - 4, scaled_y_next/1.3 - 4, scaled_x_next/1.3 + 4, scaled_y_next/1.3 + 4, fill='pink',
+#                            outline='black')
+#
+#         canvas.create_line(scaled_x/1.3, scaled_y/1.3, scaled_x_next/1.3, scaled_y_next/1.3, fill='black')
+#
+# def drawPath(path, cities):
+#     cities = cities[path]
+#     addToCanvas(cities)
+#     canvas.update()
+#     root.mainloop()
+
+def geneticAlgorithmPlot(population, popSize, eliteSize, mutationRate, generations):
+    pop = initialPopulation(popSize, population)
+    progress = []
+    progress.append(1 / rankRoutes(pop)[0][1])
+    print("Initial distance: " + str(1 / rankRoutes(pop)[0][1]))
+
+
+    for i in range(0, generations):
+        pop = nextGeneration(pop, eliteSize, mutationRate)
+        progress.append(1 / rankRoutes(pop)[0][1])
+        print("Distance : {} Generation Number: {}".format(str(1 / rankRoutes(pop)[0][1]), i))
+    print("Final distance: " + str(1 / rankRoutes(pop)[0][1]))
+    bestRouteIndex = rankRoutes(pop)[0][0]
+    bestRoute = pop[bestRouteIndex]
+    print ("Best Route: {} ".format(bestRoute))
+    # x_list = []
+    # y_list = []
+    # for j in pop:
+    #     x = j[0]
+    #     y = j[1]
+    #     x_list.append(x)
+    #     y_list.append(y)
+    #
+    # plt.plot(x_list, y_list)
+    plt.plot(progress)
+    plt.ylabel('Distance')
+    plt.xlabel('Generations')
+    plt.show()
+    super_route.append(bestRoute)
+    return bestRoute
+
+def parse_file(file_tsp):
+    node_list = []  # List for Empty Node Coordinates
+    int_dimension = 0
+    for i, line in enumerate(file_tsp):  # Read through file lines
+        if i == 4: # Fourth line in file is Dimension
+            dimension_val = line.strip().split()[1]  # Grab corresponding dimension value
+            int_dimension = int(dimension_val) + 7  # Change dimension value from str -> int
+        if i in range(7, int_dimension):  # Read each coordinate value, starting at line 7 until final coordinate
+            x, y = line.strip().split()[1:]  # Assign as coordinate pair values
+            node_list.append([float(x), float(y)])  # Append coordinate values to node list
+    return node_list
+
+
+def greedy_algorithm(nodes):
+    __SAVECOST__ = float('inf')  # finding most efficient in pythong
+    optimal_path = []
+
+    for i, start in enumerate(nodes):
+        growing_list = [i] # Start out with initial city value, ca   n be manually altered, or chooses variable cities
+        length = 0
+
+        next, neighbor, dist = closest_edge(start, nodes, growing_list) # Find closest edge attributes
+        length += dist # Increase overall length by distance travelled
+        growing_list.append(next) # Move to next coordinate
+
+        while len(growing_list) < nodes.shape[0]: # Append to list as long as overall lingth of lest is less than the total nodes possible
+            next, neighbor, dist = closest_edge(neighbor, nodes, growing_list)
+            length += dist
+            growing_list.append(next)
+
+        # print(order)
+
+        if length < __SAVECOST__:
+            __SAVECOST__= length
+            optimal_path = growing_list # Find optimal path based on 'inf'
+
+    return optimal_path, __SAVECOST__
+
+def closest_edge(node, total_cities, visited):
+    __SAVECOST__ = float('inf')  # finding most efficient in python
+    next_neighbor = float
+    current_closest = float
+
+    for i, c in enumerate(total_cities):
+
+        if i in visited:
+            pass
+        if i not in visited:
+            distance = distance_for_length(node, c) # Append to visited values
+
+            if distance < __SAVECOST__:
+                current_closest = c
+                next_neighbor = i
+                __SAVECOST__ = distance
+
+
+    return next_neighbor, current_closest, __SAVECOST__
+
+
+def distance_for_length(p1, p2):
+    x = p2[0] - p1[0]   # Distance formula to get from edge to edge
+    y = p2[1] - p1[1]
+
+    return (x ** 2 + (y** 2))
+
+Tk().withdraw()  # Do not want weight of full tkinter GUI class
+tsp_file = open(askopenfilename(), 'r')  # Open TSP file
+nodelist = parse_file(tsp_file)
+new_list = []
+for i in nodelist:
+    tuple_val = tuple(i)
+    new_list.append(tuple_val)
+
+for i in nodelist:
+        cityList.append(City(x=i[0], y=i[1]))
+
+geneticAlgorithmPlot(population=cityList, popSize= 50, eliteSize=20, mutationRate=0.001, generations=1000)
+
+
+
